@@ -1,0 +1,41 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0
+
+    - name: Terraform Init
+      working-directory: ./terraform
+      run: terraform init
+
+    - name: Terraform Plan
+      working-directory: ./terraform
+      run: terraform plan -out=tfplan
+
+    - name: Terraform Apply
+      working-directory: ./terraform
+      run: terraform apply -auto-approve tfplan
+
+    - name: Get VM IP
+      working-directory: ./terraform
+      id: ip
+      run: echo "::set-output name=ip::$(terraform output -raw vm_public_ip)"
+
+    - name: Setup Ansible
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ansible
+
+    - name: Run Ansible Playbook
+      run: ansible-playbook -i "${{ steps.ip.outputs.ip }}," --user adminuser --private-key ${{ secrets.SSH_PRIVATE_KEY }} ansible/playbook.yml
